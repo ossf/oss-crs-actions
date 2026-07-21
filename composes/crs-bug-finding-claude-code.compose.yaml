@@ -1,0 +1,44 @@
+##############################################################################
+#                        CRS Compose Configuration                           #
+#   crs-bug-finding-claude-code (bug-finding) — GitHub-hosted runner, OAuth   #
+##############################################################################
+# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Actions authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Claude Code drives bug-finding against the OSS-Fuzz target. This is the
+# CLI-token auth path: it authenticates with CLAUDE_CODE_OAUTH_TOKEN (from
+# `claude setup-token`), so NO LiteLLM proxy / Postgres sidecars run (no
+# `llm_config` block). Heavier than crs-libfuzzer and REQUIRES a secret, so run
+# it only from trusted contexts (workflow_dispatch / schedule), NEVER on fork PRs.
+#
+# Pass the token via the action's `env:` input:
+#   env: |
+#     CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+#
+# Downsized from the upstream example (8 cores / 24 GB) to fit ubuntu-latest
+# (4 vCPU / 16 GB). The agent is network/LLM-bound, not CPU-bound, so fewer cores
+# is fine.
+
+# --- General Settings -------------------------------------------------------
+run_env: local
+docker_registry: local
+
+# --- Infrastructure ---------------------------------------------------------
+oss_crs_infra:
+  cpuset: "0-1"
+  memory: "4G"
+
+# --- CRS (crs-bug-finding-claude-code) --------------------------------------
+# The ASAN snapshot sidecar is declared in the CRS's crs.yaml and handled by the
+# framework automatically.
+crs-bug-finding-claude-code:
+  cpuset: "2-3"
+  memory: "10G"
+  llm_budget: 3
+  additional_env:
+    CRS_AGENT: claude_code
+    ANTHROPIC_MODEL: claude-sonnet-4-6
+    # OAuth token expanded from the oss-crs process env (forwarded from `env:`).
+    CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN}"
+    # Bound a single agent invocation (seconds); the run --timeout is the outer cap.
+    AGENT_TIMEOUT: "1200"
