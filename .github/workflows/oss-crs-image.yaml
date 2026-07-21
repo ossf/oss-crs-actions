@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Actions authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Builds and publishes the OSS-CRS runner image to GHCR as a PUBLIC package, so
+# any consumer of this action can pull it without authentication. Runs when the
+# image inputs change, and on demand.
+name: oss-crs-image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "runner.Dockerfile"
+      - "entrypoint.sh"
+      - ".github/workflows/oss-crs-image.yaml"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  build-and-push:
+    name: Build & push oss-crs-runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push
+        run: |
+          set -euo pipefail
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          image="ghcr.io/${owner}/oss-crs-runner"
+          docker buildx build \
+            --file runner.Dockerfile \
+            --tag "${image}:latest" \
+            --tag "${image}:${GITHUB_SHA}" \
+            --push \
+            .
+          echo "Pushed ${image}:latest and ${image}:${GITHUB_SHA}"
+
+      # Consumers pull this image anonymously, so the package must be public.
+      # This is idempotent; a one-time manual toggle in the repo's package
+      # settings (Package → Package settings → Change visibility → Public) works too.
+      - name: Make package public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # user- vs org-owned packages live under different API paths; try both.
+          gh api -X PATCH "orgs/${{ github.repository_owner }}/packages/container/oss-crs-runner" \
+            -f visibility=public 2>/dev/null \
+          || gh api -X PATCH "user/packages/container/oss-crs-runner" \
+            -f visibility=public 2>/dev/null \
+          || echo "::warning::Could not set package visibility automatically; set it to Public once in the package settings."
