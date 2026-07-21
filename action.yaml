@@ -1,22 +1,22 @@
 # SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Actions authors
 # SPDX-License-Identifier: Apache-2.0
 #
-# Reusable composite action that runs one OSS-CRS harness against an OSS-Fuzz-
-# format project using a prebuilt runner image.
+# Reusable action that runs one OSS-CRS against a project with OSS-Fuzz harnesses
+#
 #   * the bundled CRS (crs-bug-finding-claude-code) is selected by name via `crs:`;
 #   * any other registry CRS is run by pointing `compose-file:` at your own compose.
 #
-# Credentials are passed generically through `env:` (KEY=VALUE per line) so no
-# action change is needed for a new CRS.
+# Credentials are passed generically to each CRS through `env:` (KEY=VALUE per line)
+# so no action change is needed to add a new CRS.
 name: "OSS-CRS scan"
-description: "Build and fuzz/analyze one harness of an OSS-Fuzz-format project with any OSS-CRS engine."
+description: "Build and fuzz/analyze one harness of an OSS-Fuzzed project with any OSS-CRS engine"
 
 inputs:
   harness:
-    description: "Harness name to fuzz (e.g. parse_class; see the project's build.sh)."
+    description: "Harness name to fuzz (eg `parse_class` see the project's build.sh)"
     required: true
   crs:
-    description: "CRS engine. Bundled: crs-bug-finding-claude-code. For any other registry CRS, pass its compose via compose-file (see composes/ for the pattern)."
+    description: "CRS engine. Bundled: crs-bug-finding-claude-code. For any other registry CRS, pass its compose via compose-file (see composes/ for the pattern)"
     required: false
     default: "crs-bug-finding-claude-code"
   proj-path:
@@ -24,9 +24,9 @@ inputs:
     required: false
     default: "oss-fuzz"
   image:
-    description: "OSS-CRS runner image."
+    description: "OSS-CRS runner image"
     required: false
-    default: "ghcr.io/ossf/oss-crs-runner:latest"
+    default: "ghcr.io/ossf/oss-crs-runner:latest" # TODO We will pin before publish
   compose-file:
     description: "Path (in the checkout) to a CRS compose file. Empty = use the compose bundled for `crs`. Set this to run any registry CRS that isn't bundled."
     required: false
@@ -40,7 +40,7 @@ inputs:
     required: false
     default: "300"
   fail-on-crash:
-    description: "Exit non-zero when a PoV/crash is found (true for presubmit; false to report only)."
+    description: "Exit non-zero when a PoV/crash is found (true for presubmit, set to false to report only)."
     required: false
     default: "true"
   env:
@@ -64,9 +64,8 @@ outputs:
 runs:
   using: "composite"
   steps:
-    # The scan logic lives in scan.sh so the local runner (local-run.sh) exercises
-    # the exact same code path — "local == CI" by construction. `compose-file` /
-    # `litellm-config` are resolved to absolute paths under the checkout.
+    # The scan logic lives in scan.sh
+    # `compose-file` / `litellm-config` are resolved to absolute paths under the checkout
     - id: scan
       shell: bash
       env:

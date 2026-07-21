@@ -1,8 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Actions authors
 # SPDX-License-Identifier: Apache-2.0
 #
-# Builds and publishes the OSS-CRS runner image to GHCR as a PUBLIC package, so
-# any consumer of this action can pull it without authentication. Runs when the
+# Builds and publishes the OSS-CRS runner image to GHCR. Runs when the
 # image inputs change, and on demand.
 name: oss-crs-image
 
@@ -48,18 +47,3 @@ jobs:
             --push \
             .
           echo "Pushed ${image}:latest and ${image}:${GITHUB_SHA}"
-
-      # Consumers pull this image anonymously, so the package must be public.
-      # This is idempotent; a one-time manual toggle in the repo's package
-      # settings (Package → Package settings → Change visibility → Public) works too.
-      - name: Make package public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          # user- vs org-owned packages live under different API paths; try both.
-          gh api -X PATCH "orgs/${{ github.repository_owner }}/packages/container/oss-crs-runner" \
-            -f visibility=public 2>/dev/null \
-          || gh api -X PATCH "user/packages/container/oss-crs-runner" \
-            -f visibility=public 2>/dev/null \
-          || echo "::warning::Could not set package visibility automatically; set it to Public once in the package settings."
