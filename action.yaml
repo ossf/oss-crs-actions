@@ -46,11 +46,10 @@ inputs:
   env:
     description: |
       Credentials/config to forward into the CRS container, one KEY=VALUE per line.
-      Values come from your caller's secrets, e.g.
-        env: |
-          CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      Each name is forwarded to the container (value never appears in logs); the
-      chosen CRS's compose / LiteLLM config decides which names it reads.
+      Each value typically comes from a caller secret, e.g. a line reading
+      CLAUDE_CODE_OAUTH_TOKEN=<secrets.CLAUDE_CODE_OAUTH_TOKEN>. Each name is
+      forwarded to the container (value never appears in logs); the chosen CRS's
+      compose / LiteLLM config decides which names it reads.
     required: false
     default: ""
 
