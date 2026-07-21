@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Actions authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Reusable composite action that runs one OSS-CRS harness against an OSS-Fuzz-
+# format project using a prebuilt runner image.
+#   * the bundled CRS (crs-bug-finding-claude-code) is selected by name via `crs:`;
+#   * any other registry CRS is run by pointing `compose-file:` at your own compose.
+#
+# Credentials are passed generically through `env:` (KEY=VALUE per line) so no
+# action change is needed for a new CRS.
+name: "OSS-CRS scan"
+description: "Build and fuzz/analyze one harness of an OSS-Fuzz-format project with any OSS-CRS engine."
+
+inputs:
+  harness:
+    description: "Harness name to fuzz (e.g. parse_class; see the project's build.sh)."
+    required: true
+  crs:
+    description: "CRS engine. Bundled: crs-bug-finding-claude-code. For any other registry CRS, pass its compose via compose-file (see composes/ for the pattern)."
+    required: false
+    default: "crs-bug-finding-claude-code"
+  proj-path:
+    description: "OSS-Fuzz project path passed as --fuzz-proj-path."
+    required: false
+    default: "oss-fuzz"
+  image:
+    description: "OSS-CRS runner image."
+    required: false
+    default: "ghcr.io/ossf/oss-crs-runner:latest"
+  compose-file:
+    description: "Path (in the checkout) to a CRS compose file. Empty = use the compose bundled for `crs`. Set this to run any registry CRS that isn't bundled."
+    required: false
+    default: ""
+  litellm-config:
+    description: "Path (in the checkout) to a LiteLLM config for proxy-based LLM CRSs. Empty = use the bundled per-CRS default (composes/<crs>.litellm-config.yaml)."
+    required: false
+    default: ""
+  timeout:
+    description: "Fuzzing/analysis budget in seconds for the run phase."
+    required: false
+    default: "300"
+  fail-on-crash:
+    description: "Exit non-zero when a PoV/crash is found (true for presubmit; false to report only)."
+    required: false
+    default: "true"
+  env:
+    description: |
+      Credentials/config to forward into the CRS container, one KEY=VALUE per line.
+      Values come from your caller's secrets, e.g.
+        env: |
+          CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      Each name is forwarded to the container (value never appears in logs); the
+      chosen CRS's compose / LiteLLM config decides which names it reads.
+    required: false
+    default: ""
+
+outputs:
+  crashed:
+    description: "'true' if at least one PoV/crash was found."
+    value: ${{ steps.scan.outputs.crashed }}
+  artifacts-dir:
+    description: "Directory holding collected PoVs and logs."
+    value: ${{ steps.scan.outputs.artifacts-dir }}
+
+runs:
+  using: "composite"
+  steps:
+    # The scan logic lives in scan.sh so the local runner (local-run.sh) exercises
+    # the exact same code path — "local == CI" by construction. `compose-file` /
+    # `litellm-config` are resolved to absolute paths under the checkout.
+    - id: scan
+      shell: bash
+      env:
+        HARNESS: ${{ inputs.harness }}
+        CRS: ${{ inputs.crs }}
+        PROJ_PATH: ${{ inputs.proj-path }}
+        IMAGE: ${{ inputs.image }}
+        COMPOSE_FILE: ${{ inputs.compose-file && format('{0}/{1}', github.workspace, inputs.compose-file) || '' }}
+        LITELLM_CONFIG: ${{ inputs.litellm-config && format('{0}/{1}', github.workspace, inputs.litellm-config) || '' }}
+        TIMEOUT: ${{ inputs.timeout }}
+        FAIL_ON_CRASH: ${{ inputs.fail-on-crash }}
+        WORKSPACE: ${{ github.workspace }}
+        CRS_ENV: ${{ inputs.env }}
+      run: bash "${GITHUB_ACTION_PATH}/scan.sh"
