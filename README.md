@@ -16,7 +16,7 @@ any registry CRS today by supplying its compose via `compose-file`.
 - uses: ossf/oss-crs-actions@v1        # pin to a tag or commit SHA
   with:
     crs: crs-bug-finding-claude-code   # the default
-    harness: parse_class
+    harness: my_harness                # a target from your oss-fuzz/build.sh
     proj-path: oss-fuzz
     timeout: "1500"
     fail-on-crash: "false"
@@ -99,7 +99,7 @@ OSS-Fuzz base image is amd64; other hosts work under slow emulation).
 # From your project checkout: build the runner image and run Claude on one harness.
 CRS=crs-bug-finding-claude-code \
 CRS_ENV="CLAUDE_CODE_OAUTH_TOKEN=$(cat token.txt)" \
-WORKSPACE=$(pwd) /path/to/oss-crs-actions/local-run.sh parse_class 600
+WORKSPACE=$(pwd) /path/to/oss-crs-actions/local-run.sh my_harness 600
 ```
 
 PoVs and logs land in `oss-crs-artifacts/<harness>/`.

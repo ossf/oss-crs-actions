@@ -2,12 +2,13 @@
 # SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS authors
 # SPDX-License-Identifier: Apache-2.0
 #
-# Core OSS-CRS scan logic, shared by the composite action (action.yaml) and the
-# local runner (local-run.sh) so "local == CI" by construction. Configuration
-# comes from environment variables:
+# Core OSS-CRS scan logic, this script us shared by the composite action (action.yaml)
+# and the local runner script (local-run.sh) so "local == CI" by construction.
 #
-#   HARNESS         (required) harness name (eg parse_class)
-#   CRS             CRS name, selects the bundled compose  (default: crs-bug-finding-claude-code)
+# All the configuration comes from environment variables:
+#
+#   HARNESS         (required) harness name (a target from your oss-fuzz/build.sh)
+#   CRS             CRS name (a bundled compose)   (default: crs-bug-finding-claude-code)
 #   PROJ_PATH       OSS-Fuzz project dir           (default: oss-fuzz)
 #   WORKSPACE       repo checkout root             (default: git toplevel)
 #   IMAGE           runner image                   (default: ghcr.io/ossf/oss-crs-runner:latest)
@@ -19,7 +20,7 @@
 #   CRS_ENV         newline separated KEY=VALUE credentials/env to forward into the CRS
 #   GITHUB_OUTPUT   if set, `crashed`/`artifacts-dir` are written there
 #
-# Secrets model: every `KEY=VALUE` line in CRS_ENV is exported into this process
+# Secrets handling: every `KEY=VALUE` line in CRS_ENV is exported into this process
 # and forwarded into the oss-crs container by NAME ONLY (`docker run -e KEY`), so
 # secret values never appear on a command line or in the CI log. The compose /
 # LiteLLM config for the chosen CRS decides which of those names it reads
@@ -34,13 +35,13 @@ PROJ_PATH="${PROJ_PATH:-oss-fuzz}"
 WORKSPACE="${WORKSPACE:-$(git rev-parse --show-toplevel)}"
 TIMEOUT="${TIMEOUT:-300}"
 FAIL_ON_CRASH="${FAIL_ON_CRASH:-true}"
-IMAGE="${IMAGE:-ghcr.io/ossf/oss-crs-runner:latest}"
+IMAGE="${IMAGE:-ghcr.io/ossf/oss-crs-runner:latest}" # FIXME: We need to pin this
 
 WORKDIR="${WORKSPACE}/.oss-crs-work"
 ARTIFACTS="${WORKSPACE}/oss-crs-artifacts/${HARNESS}"
 mkdir -p "$WORKDIR" "$ARTIFACTS"
 
-# Publish artifacts-dir immediately so the caller's upload step always has a
+# Publish artifacts dir immediately so the caller's upload step always has a
 # valid path, even if a later phase (prepare/build-target) aborts under `set -e`.
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   echo "artifacts-dir=$ARTIFACTS" >> "$GITHUB_OUTPUT"
@@ -67,7 +68,7 @@ if [[ -z "$COMPOSE_FILE" ]]; then
   cp -f "$src" "$COMPOSE_FILE"
 fi
 
-# LiteLLM-proxy CRSs (codex, gemini, …) reference a litellm config from the
+# LiteLLM-proxy CRSs (codex, gemini, etc) reference a litellm config from the
 # compose as `./.oss-crs-work/litellm-config.yaml` (relative to the run cwd,
 # WORKSPACE). Stage it at exactly that path: the per-CRS bundled config, or an
 # override. Fuzzer / OAuth CRSs have no llm_config and ignore it.
@@ -113,13 +114,14 @@ echo "image=$IMAGE"
 echo "crs=$CRS  harness=$HARNESS  timeout=${TIMEOUT}s"
 echo "compose=$COMPOSE_FILE  proj=$PROJ_PATH  work=$WORKDIR"
 echo "litellm-config=${LITELLM_CONFIG:-(none)}"
+
 # Print forwarded NAMES only (never values).
 fwd=()
 for ((i = 1; i < ${#ENV_ARGS[@]}; i += 2)); do fwd+=("${ENV_ARGS[i]}"); done
 echo "forwarded-env=${fwd[*]:-(none)}"
 echo "::endgroup::"
 
-# Run the oss-crs CLI from the image. The workspace is bind-mounted at the SAME
+# Run the oss-crs CLI from the image. The workspace is mounted at the SAME
 # absolute path in and out of the container, and the Docker socket is shared, so
 # the paths oss-crs hands to the daemon resolve on the host.
 oss_crs() {
@@ -132,7 +134,7 @@ oss_crs() {
 }
 
 echo "::group::image"
-# Pull only registry images; a locally-built image (e.g. :local) stays as-is.
+# Pull only registry images, a locally-built image (eg :local) stays as is.
 docker image inspect "$IMAGE" >/dev/null 2>&1 || docker pull "$IMAGE"
 echo "::endgroup::"
 
@@ -179,7 +181,7 @@ ls -la "$ARTIFACTS" || true
 echo "::endgroup::"
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-  # artifacts-dir was already published near the top.
+  # artifacts-dir was already published near the top
   echo "crashed=$crashed" >> "$GITHUB_OUTPUT"
 fi
 

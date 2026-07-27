@@ -13,7 +13,7 @@ description: "Build and fuzz/analyze one harness of an OSS-Fuzzed project with a
 
 inputs:
   harness:
-    description: "Harness name to fuzz (eg `parse_class` see the project's build.sh)"
+    description: "Harness name to fuzz (a target from your project's oss-fuzz/build.sh)."
     required: true
   crs:
     description: "CRS engine. Bundled: crs-bug-finding-claude-code. For any other registry CRS, pass its compose via compose-file (see composes/ for the pattern)"
