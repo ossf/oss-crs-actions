@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Actions authors
+# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Authors
 # SPDX-License-Identifier: Apache-2.0
 #
 # Builds and publishes the OSS-CRS runner image to GHCR. Runs when the

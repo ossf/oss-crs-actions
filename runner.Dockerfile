@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS authors
+# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Authors
 # SPDX-License-Identifier: Apache-2.0
 #
 # Runner image that bundles OSS-CRS (https://github.com/ossf/oss-crs) and its

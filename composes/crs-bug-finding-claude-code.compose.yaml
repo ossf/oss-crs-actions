@@ -2,7 +2,7 @@
 #                        CRS Compose Configuration                           #
 #   crs-bug-finding-claude-code (bug-finding) — GitHub-hosted runner, OAuth   #
 ##############################################################################
-# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Actions authors
+# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Authors
 # SPDX-License-Identifier: Apache-2.0
 #
 # Claude Code drives bug-finding against the OSS-Fuzz target. This is the

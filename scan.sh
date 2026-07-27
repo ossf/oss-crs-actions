@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS authors
+# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Authors
 # SPDX-License-Identifier: Apache-2.0
 #
 # Core OSS-CRS scan logic, this script us shared by the composite action (action.yaml)
