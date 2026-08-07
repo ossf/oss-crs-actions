@@ -3,6 +3,11 @@
 #
 # Builds and publishes the OSS-CRS runner image to GHCR. Runs when the
 # image inputs change, and on demand.
+#
+# The image is signed with Sigstore keyless signing and a SLSA provenance
+# attestation is generated for the run and attached to the image. cosign v3
+# stores both the signature and the attestation as OCI 1.1 referrers of the
+# image manifest, so they travel with the image inside the registry.
 name: oss-crs-image
 
 on:
@@ -17,6 +22,10 @@ on:
 
 permissions: {}
 
+env:
+  COSIGN_VERSION: v3.1.2
+  IMAGE_NAME: oss-crs-runner
+
 jobs:
   build-and-push:
     name: Build & push oss-crs-runner
@@ -25,25 +34,108 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # To sign the image with Sigstore
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+
       - name: Log in to GHCR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          GHCR_ACTOR: ${{ github.actor }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GHCR_ACTOR" --password-stdin
 
       - name: Build and push
+        id: build
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
-          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          image="ghcr.io/${owner}/oss-crs-runner"
+          owner=$(echo "$REPO_OWNER" | tr '[:upper:]' '[:lower:]')
+          image="ghcr.io/${owner}/${IMAGE_NAME}"
           docker buildx build \
             --file runner.Dockerfile \
             --tag "${image}:latest" \
             --tag "${image}:${GITHUB_SHA}" \
+            --metadata-file metadata.json \
             --push \
             .
-          echo "Pushed ${image}:latest and ${image}:${GITHUB_SHA}"
+          digest=$(jq -r '."containerimage.digest"' metadata.json)
+          echo "ref=${image}@${digest}" >> "$GITHUB_OUTPUT"
+          echo "Pushed ${image}:latest and ${image}:${GITHUB_SHA} (${digest})"
+
+      - name: Sign the image
+        env:
+          IMAGE_REF: ${{ steps.build.outputs.ref }}
+        run: |
+          set -euo pipefail
+          # Keyless: the signature is bound to this workflow's OIDC identity.
+          # Sign the digest, not a tag, so the signature cannot be detached
+          # from the bits by moving a tag later.
+          cosign sign --yes "$IMAGE_REF"
+
+  # The provenance runs in its own job, in parallel with the build, so that the
+  # build cannot alter the attestation. Everything it attests is read from
+  # published state (the workflow run and the registry), never handed over from
+  # the build job, which is why this job does not declare `needs`.
+  provenance:
+    name: Attest oss-crs-runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read # To read the workflow run data
+      packages: write # To attach the attestation to the image
+      id-token: write # To sign the attestation with Sigstore
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_ACTOR: ${{ github.actor }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GHCR_ACTOR" --password-stdin
+
+      - name: Generate provenance
+        uses: carabiner-dev/actions/slsa/generate@36a39ef667efe7112df8b1a534a4e37f35fad6fd # v1.2.6
+        with:
+          sign: "false"
+          output: provenance.json
+          timeout: 30m
+
+      - name: Resolve the image digest
+        id: image
+        env:
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          owner=$(echo "$REPO_OWNER" | tr '[:upper:]' '[:lower:]')
+          image="ghcr.io/${owner}/${IMAGE_NAME}"
+          # Read the digest back from the registry rather than trusting one
+          # handed over by the build job.
+          digest=$(docker buildx imagetools inspect "${image}:${GITHUB_SHA}" --format '{{.Manifest.Digest}}')
+          echo "ref=${image}@${digest}" >> "$GITHUB_OUTPUT"
+          echo "Attesting ${image}@${digest}"
+
+      - name: Attach the provenance attestation to the image
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+        run: |
+          set -euo pipefail
+          # Here we need to extract the predicate from the tejolote attestation
+          # as cosign will regenerate it
+          jq '.predicate' provenance.json > predicate.json
+          pred_type=$(jq -r '.predicateType' provenance.json)
+          cosign attest --yes \
+            --predicate predicate.json \
+            --type "${pred_type}" \
+            "$IMAGE_REF"
