@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Static checks for the workflows, the action, the shell scripts and the
+# runner Dockerfile.
+name: lint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions: {}
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          version: v1.30.1
+          collect: all
+          advanced-security: false
+          annotations: true
+
+      - name: actionlint
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
+            -color
+
+      - name: shellcheck
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
+        with:
+          check_together: "yes"
+
+      - name: hadolint
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: runner.Dockerfile
+          failure-threshold: error
