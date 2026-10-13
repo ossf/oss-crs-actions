@@ -22,6 +22,12 @@ on:
 
 permissions: {}
 
+# One publish at a time so two runs cannot race on the :latest tag. Queue
+# rather than cancel: a half-finished publish/sign must not be interrupted.
+concurrency:
+  group: oss-crs-image
+  cancel-in-progress: false
+
 env:
   COSIGN_VERSION: v3.1.2
   IMAGE_NAME: oss-crs-runner
@@ -29,6 +35,8 @@ env:
 jobs:
   build-and-push:
     name: Build & push oss-crs-runner
+    # workflow_dispatch can target any branch; only main may publish and sign :latest.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -86,6 +94,7 @@ jobs:
   # the build job, which is why this job does not declare `needs`.
   provenance:
     name: Attest oss-crs-runner
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
