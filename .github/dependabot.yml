@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Keeps SHA-pinned actions and the pinned runner base images up to date.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
