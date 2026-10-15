@@ -79,4 +79,6 @@ runs:
         FAIL_ON_CRASH: ${{ inputs.fail-on-crash }}
         WORKSPACE: ${{ github.workspace }}
         CRS_ENV: ${{ inputs.env }}
+        EVENT_NAME: ${{ github.event_name }}
+        HEAD_REPO_FORK: ${{ github.event.pull_request.head.repo.fork }}
       run: bash "${GITHUB_ACTION_PATH}/scan.sh"

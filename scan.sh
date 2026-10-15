@@ -19,6 +19,10 @@
 #   !! CRS_ENV passes the required values to the configured CRS 
 #   CRS_ENV         newline separated KEY=VALUE credentials/env to forward into the CRS
 #   GITHUB_OUTPUT   if set, `crashed`/`artifacts-dir` are written there
+#   EVENT_NAME      triggering event name (set by the action)
+#   HEAD_REPO_FORK  "true" when the PR head is a fork (set by the action)
+#
+# Runs that forward CRS_ENV are refused for pull_request_target and fork pull requests.
 #
 # Secrets handling: every `KEY=VALUE` line in CRS_ENV is exported into this process
 # and forwarded into the oss-crs container by NAME ONLY (`docker run -e KEY`), so
@@ -127,6 +131,15 @@ if [[ -n "$LITELLM_CONFIG" ]]; then
   cp -f "$LITELLM_CONFIG" "${WORKDIR}/litellm-config.yaml"
 fi
 
+# Never hand credentials to code that can come from an untrusted pull request.
+if [[ -n "${CRS_ENV:-}" ]]; then
+  if [[ "${EVENT_NAME:-}" == "pull_request_target" || "${HEAD_REPO_FORK:-}" == "true" ]]; then
+    echo "error: refusing to forward credentials (env) for '${EVENT_NAME:-}' from a fork or pull_request_target." >&2
+    echo "       Run it from workflow_dispatch/schedule/push instead." >&2
+    exit 2
+  fi
+fi
+
 # Forward credentials/config into the oss-crs container. Each CRS_ENV line is
 # `KEY=VALUE`; we export it here and pass `-e KEY` (name only) so the value is
 # read from the environment and never lands on the command line or in the log.
@@ -151,6 +164,20 @@ if [[ -n "${CRS_ENV:-}" ]]; then
       echo "error: invalid env var name in CRS_ENV: '${key}'" >&2
       exit 2
     fi
+    # These names would let a caller redirect this script, the runner, the
+    # Docker client or the interpreter inside the runner image.
+    case "$key" in
+      GITHUB_OUTPUT | GITHUB_ENV | GITHUB_PATH | GITHUB_STATE | GITHUB_STEP_SUMMARY | GITHUB_ACTION_PATH | GITHUB_WORKSPACE | \
+        RUNNER_* | ACTIONS_* | INPUT_* | DOCKER_* | COMPOSE_* | BUILDX_* | BASH_* | LD_* | UV_* | PYTHON* | \
+        PATH | HOME | IFS | ENV | SHELL | SHELLOPTS | BASHOPTS | PS4 | PROMPT_COMMAND | CDPATH | TMPDIR | \
+        HARNESS | CRS | CRS_ENV | PROJ_PATH | IMAGE | LITELLM_CONFIG | TIMEOUT | FAIL_ON_CRASH | \
+        WORKSPACE | WORKDIR | ARTIFACTS | SCAN_DIR | EVENT_NAME | HEAD_REPO_FORK)
+        echo "error: env var name '${key}' is reserved and cannot be forwarded via CRS_ENV" >&2
+        exit 2
+        ;;
+    esac
+    # Make sure the runner masks the value in logs even if it did not come from a secret.
+    [[ -n "$val" ]] && echo "::add-mask::${val}"
     export "${key}=${val}"
     ENV_ARGS+=(-e "$key")
   done <<< "$CRS_ENV"
@@ -173,6 +200,7 @@ echo "::endgroup::"
 # the paths oss-crs hands to the daemon resolve on the host.
 oss_crs() {
   docker run --rm \
+    --security-opt no-new-privileges \
     ${ENV_ARGS[@]+"${ENV_ARGS[@]}"} \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "${WORKSPACE}:${WORKSPACE}" \
