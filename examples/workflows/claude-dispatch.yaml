@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: Copyright 2026 The OSS-CRS Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copy-paste caller: run the bundled Claude Code CRS against one harness on
+# demand. Manual dispatch only, because it uses a secret and costs LLM quota.
+name: oss-crs-claude
+
+on:
+  workflow_dispatch:
+    inputs:
+      harness:
+        description: "Harness name (a target from oss-fuzz/build.sh)"
+        required: true
+      timeout:
+        description: "Run budget in seconds"
+        default: "1500"
+
+permissions: {}
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: scan
+        uses: ossf/oss-crs-actions@307a56830ad625f0f8859dd5783a42e6295eae5b # replace with the latest release tag's SHA
+        with:
+          harness: ${{ inputs.harness }}
+          timeout: ${{ inputs.timeout }}
+          fail-on-crash: "false"
+          env: |
+            CLAUDE_CODE_OAUTH_TOKEN=${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+      - name: Upload PoVs and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: oss-crs-${{ inputs.harness }}
+          path: ${{ steps.scan.outputs.artifacts-dir }}
+          if-no-files-found: ignore

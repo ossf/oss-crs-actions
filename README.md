@@ -12,7 +12,9 @@ target. The action is built to be CRS-agnostic — more of the
 any registry CRS today by supplying its compose via `compose-file`.
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  with:
+    persist-credentials: false         # the workspace is mounted into the CRS containers
 - uses: ossf/oss-crs-actions@v1        # pin to a tag or commit SHA
   with:
     crs: crs-bug-finding-claude-code   # the default
@@ -42,7 +44,8 @@ Claude Code authenticates with an OAuth token (no LiteLLM proxy):
 3. Add a caller workflow (see [`examples/workflows/claude-dispatch.yaml`](examples/workflows/claude-dispatch.yaml)).
 
 Because it needs a secret and costs Claude quota, run it **manual-dispatch / scheduled
-only, in a trusted context — never on fork PRs.**
+only, in a trusted context — never on fork PRs** (the action refuses to forward `env:`
+credentials for `pull_request_target` and fork pull requests).
 
 ## Inputs
 
@@ -74,6 +77,25 @@ Each name is exported and forwarded into the CRS container **by name only**
 (`docker run -e KEY`), so values never appear on a command line or in the log. The CRS's
 compose decides which names it reads (Claude reads `CLAUDE_CODE_OAUTH_TOKEN`). This
 passthrough is generic, so bringing a new CRS online needs no change to the action.
+Names that could redirect the script or runner (`PATH`, `GITHUB_OUTPUT`, `GITHUB_ENV`,
+`RUNNER_*`, `DOCKER_*`, `LD_*`, `IMAGE`, `WORKSPACE`, …) are reserved and rejected.
+
+## Security notes
+
+- **The runner image gets the Docker socket, which is root-equivalent on the runner.**
+  Use ephemeral (GitHub-hosted or throwaway) runners, never a long-lived self-hosted one,
+  and pin `image` to a digest (`ghcr.io/ossf/oss-crs-runner@sha256:...`) rather than
+  `:latest`. Images are signed with Sigstore; verify before trusting one:
+  `cosign verify --certificate-oidc-issuer https://token.actions.githubusercontent.com --certificate-identity-regexp '^https://github.com/ossf/oss-crs-actions/\.github/workflows/oss-crs-image\.yaml@refs/heads/main$' <image>@sha256:...`
+- **Check out with `persist-credentials: false`.** The workspace (including
+  `.git/config`) is mounted into containers that run an LLM agent and your target's code.
+- **Give the workflow the least privilege** (`permissions: contents: read`) and use a
+  credential scoped only to what the CRS needs.
+- **Artifacts are readable by anyone who can read the repo** (everyone, for a public
+  repo), and log masking does not apply to them. Review what the CRS writes to its logs
+  before uploading `artifacts-dir` from a public repository.
+- **Inputs are validated:** `harness`/`crs` must be plain names, `timeout` an integer, and
+  `proj-path`, `compose-file` and `litellm-config` must resolve inside the checkout.
 
 ## How it works
 
@@ -82,9 +104,11 @@ passthrough is generic, so bringing a new CRS online needs no change to the acti
   (built by [`.github/workflows/oss-crs-image.yaml`](.github/workflows/oss-crs-image.yaml)).
   Consumers pull it anonymously — no GHCR login needed.
 - **Isolation.** Runs on an ephemeral GitHub-hosted runner. The oss-crs CLI runs inside
-  the pinned image and drives the runner's own Docker daemon via a mounted socket; the
-  workspace is bind-mounted at the **same absolute path** in/out of the container so paths
-  handed to the daemon resolve. No root, no `--privileged`, no Docker-in-Docker.
+  the image and drives the runner's own Docker daemon via a mounted socket (no
+  `--privileged`, no Docker-in-Docker, `no-new-privileges` set); the workspace is
+  bind-mounted at the **same absolute path** in/out of the container so paths handed to
+  the daemon resolve. Note the container runs as root and the socket is root-equivalent
+  on the runner (see **Security notes**).
 - **The exact checkout** is analyzed via `--target-source-path`, never a stale `main`.
 - **Scan core.** All logic lives in [`scan.sh`](scan.sh) (prepare → build-target → run →
   collect PoVs/logs), shared by the action and `local-run.sh` so **local == CI**.
