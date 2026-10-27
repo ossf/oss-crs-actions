@@ -9,7 +9,7 @@
 # This is built in CI by .github/workflows/oss-crs-image.yaml as
 # ghcr.io/<owner>/oss-crs-runner so any consumer of this action can pull it
 # without authentication.
-FROM ghcr.io/astral-sh/uv:0.5.29@sha256:88d7b48fc9f17462c82b5482e497af250d337f3f14e1ac97c16e68eba49b651e AS uv
+FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
 
 FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 
