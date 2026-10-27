@@ -115,7 +115,7 @@ jobs:
         run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GHCR_ACTOR" --password-stdin
 
       - name: Generate provenance
-        uses: carabiner-dev/actions/slsa/generate@5c3fc97584f8e39921fcfefe319a60f0657294a0 # v1.2.8
+        uses: carabiner-dev/actions/slsa/generate@d41fe10fe88deaf493ce026007da73738b9f570c # v1.3.0
         with:
           sign: "false"
           output: provenance.json
@@ -140,7 +140,7 @@ jobs:
         # Pinned to a main commit rather than a tag: sbom/image is merged but
         # no release carries it yet (v1.2.6 predates it). Move to a tag once
         # one ships.
-        uses: carabiner-dev/actions/sbom/image@5c3fc97584f8e39921fcfefe319a60f0657294a0 # v1.2.8
+        uses: carabiner-dev/actions/sbom/image@d41fe10fe88deaf493ce026007da73738b9f570c # v1.3.0
         with:
           # An SBOM of the built image, not of the source tree. unpack pulls
           # the digest from the registry and walks the layers.
