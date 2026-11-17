@@ -49,7 +49,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
 
@@ -104,7 +104,7 @@ jobs:
       id-token: write # To sign the attestation with Sigstore
     steps:
       - name: Install cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
 
@@ -115,7 +115,7 @@ jobs:
         run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GHCR_ACTOR" --password-stdin
 
       - name: Generate provenance
-        uses: carabiner-dev/actions/slsa/generate@5c3fc97584f8e39921fcfefe319a60f0657294a0 # v1.2.8
+        uses: carabiner-dev/actions/slsa/generate@63d43b57262e65927864c8f7ca0a6a8efe06acc0 # v1.3.1
         with:
           sign: "false"
           output: provenance.json
@@ -140,7 +140,7 @@ jobs:
         # Pinned to a main commit rather than a tag: sbom/image is merged but
         # no release carries it yet (v1.2.6 predates it). Move to a tag once
         # one ships.
-        uses: carabiner-dev/actions/sbom/image@5c3fc97584f8e39921fcfefe319a60f0657294a0 # v1.2.8
+        uses: carabiner-dev/actions/sbom/image@63d43b57262e65927864c8f7ca0a6a8efe06acc0 # v1.3.1
         with:
           # An SBOM of the built image, not of the source tree. unpack pulls
           # the digest from the registry and walks the layers.
